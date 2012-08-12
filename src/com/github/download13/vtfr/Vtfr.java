@@ -15,10 +15,11 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import com.vexsoftware.votifier.model.Vote;
+import com.vexsoftware.votifier.model.VoteListener;
 
 
 public class Vtfr extends JavaPlugin {
-	private ArrayList<Method> listeners;
+	private ArrayList<Object> listeners;
 	private VtfrServer serverObject;
 	private Thread serverThread;
 	public Map<String, String> hmacKeys;
@@ -53,7 +54,7 @@ public class Vtfr extends JavaPlugin {
 	}
 	
 	private void getListeners() {
-		listeners = new ArrayList<Method>();
+		listeners = new ArrayList<Object>();
 		
 		File listenersDir = new File(getDataFolder(), "listeners");
 		listenersDir.mkdirs();
@@ -61,30 +62,39 @@ public class Vtfr extends JavaPlugin {
 		String[] files = listenersDir.list();
 		for(String file : files) {
 			if(file.endsWith(".class")) {
-				Method listener = getListener(file.substring(0, file.length() - 6));
+				Object listener = getListener(file.substring(0, file.length() - 6).trim());
 				if(listener == null) continue;
 				listeners.add(listener);
 			}
 		}
 	}
-	private Method getListener(String className) {
+	private Object getListener(String className) {
 		try {
-			File file = new File("listeners", className + ".class");
-			URLClassLoader loader = new URLClassLoader(new URL[] { file.toURI().toURL() });
+			File file = new File(getDataFolder(), "listeners");
+			URLClassLoader loader = new URLClassLoader(new URL[] { file.toURI().toURL() }, VoteListener.class.getClassLoader());
 			Class<?> listener = loader.loadClass(className);
-			Method[] methods = listener.getDeclaredMethods();
+			Object listenerInstance = listener.newInstance();
 			
+			Method[] methods = listener.getDeclaredMethods();
 			for(Method method : methods) {
 				if(method.getName() == "voteMade") {
-					return method;
+					getLogger().info("Loaded listener: " + className);
+					return listenerInstance;
 				}
 			}
+			
 			return null;
 		} catch(ClassNotFoundException e) {
 			e.printStackTrace();
 			return null;
 		} catch(MalformedURLException e) {
 			System.out.println("How the hell did this happen?!");
+			e.printStackTrace();
+			return null;
+		} catch (InstantiationException e) {
+			e.printStackTrace();
+			return null;
+		} catch (IllegalAccessException e) {
 			e.printStackTrace();
 			return null;
 		}
@@ -97,9 +107,16 @@ public class Vtfr extends JavaPlugin {
 		vote.setAddress(userAddress);
 		vote.setTimeStamp(timestamp);
 		
-		for(Method listener : listeners) {
+		for(Object listener : listeners) {
 			try {
-				listener.invoke(vote);
+				Class<?> listenerClass = listener.getClass();
+				Method[] methods = listenerClass.getDeclaredMethods();
+				for(Method method : methods) {
+					if(method.getName() == "voteMade") {
+						method.invoke(listener, vote);
+						break;
+					}
+				}
 			} catch (IllegalAccessException e) {
 				e.printStackTrace();
 			} catch (IllegalArgumentException e) {
