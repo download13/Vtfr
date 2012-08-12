@@ -1,7 +1,6 @@
 package com.github.download13.vtfr;
 
 import java.io.File;
-import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.MalformedURLException;
@@ -12,13 +11,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-import com.vexsoftware.votifier.model.Vote;
-
-
-import org.bukkit.configuration.Configuration;
 import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
+
+import com.vexsoftware.votifier.model.Vote;
 
 
 public class Vtfr extends JavaPlugin {
@@ -26,19 +22,18 @@ public class Vtfr extends JavaPlugin {
 	private VtfrServer serverObject;
 	private Thread serverThread;
 	public Map<String, String> hmacKeys;
-	public Configuration config;
 	
 	
 	public void onEnable() {
-		getDataFolder().mkdirs();
+		saveDefaultConfig();
 		
 		loadConfig();
 		getListeners();
-		serverObject = new VtfrServer(this, config.getInt("port"));
+		serverObject = new VtfrServer(this, getConfig().getInt("port"));
 		serverThread = new Thread(serverObject);
 		serverThread.start();
 		
-		getLogger().info("Vtfr listening on port " + config.getInt("port"));
+		getLogger().info("Vtfr listening on port " + getConfig().getInt("port"));
 	}
 	public void onDisable() {
 		if(serverThread != null) {
@@ -49,20 +44,10 @@ public class Vtfr extends JavaPlugin {
 	private void loadConfig() {
 		hmacKeys = new HashMap<String, String>();
 		
-		File configFile = new File(getDataFolder(), "config.yml");
-		
-		YamlConfiguration cfg = YamlConfiguration.loadConfiguration(configFile);
-		config = cfg;
-		if(!cfg.contains("port")) {
-			cfg.set("port", 25560);
-			cfg.createSection("keys");
-			try { cfg.save(configFile); } catch (IOException e) { e.printStackTrace(); }
-		}
-		
-		ConfigurationSection listSection = cfg.getConfigurationSection("keys"); // XXX: Is this correct?
+		ConfigurationSection listSection = getConfig().getConfigurationSection("keys");
 		Set<String> serverListNames = listSection.getKeys(false);
 		for(String listName : serverListNames) {
-			String listKey = cfg.getString(listName);
+			String listKey = listSection.getString(listName);
 			hmacKeys.put(listName, listKey);
 		}
 	}
